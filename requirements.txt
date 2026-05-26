@@ -1,0 +1,14 @@
+accelerate==1.7.0
+einops==0.8.2
+flash_attn==2.8.0.post2
+h5py==3.14.0
+imageio==2.37.0
+liger_kernel==0.5.10
+matplotlib==3.10.9
+numpy==2.4.6
+opencv_python==4.11.0.86
+pandas==3.0.3
+skimage==0.0
+torch==2.5.0+cu124
+torchvision==0.20.0+cu124
+tqdm==4.67.1
