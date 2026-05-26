@@ -41,8 +41,8 @@ parser.add_argument('--thresholds', type=str, default='[20.0, 30.0, 35.0, 40.0]'
 parser.add_argument('--value_scale', type=float, default=90.0)
 args = parser.parse_args()
 args.tied = True
-args.thresholds = [16, 74, 133, 160, 181, 219] if args.datasets.split("_")[0]=='sevir' else eval(args.thresholds) 
-args.value_scale = 255.0 if args.datasets.split("_")[0]=='sevir' else 90.0
+args.thresholds = [16, 74, 133, 160, 181, 219] if args.datasets=='sevir' else eval(args.thresholds) 
+args.value_scale = 255.0 if args.datasets=='sevir' else 90.0
 
 def train_wrapper(model):
     save_weights = SaveWeights(verbose=True)

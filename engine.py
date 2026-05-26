@@ -105,7 +105,7 @@ class Model(object):
                         tokens = tokens.reshape(self.configs.batch_size, self.configs.output_length, -1, self.configs.img_size, self.configs.img_size) # B, T, C, H, W
                 prediction = tokens.squeeze(2) # B, T, H, W
                 target = target.squeeze(2)
-                if self.configs.datasets.split("_")[0] == "cikm":
+                if self.configs.datasets == "cikm":
                     prediction = prediction[:,:,13:-14,13:-14]
                     target = target[:,-self.configs.output_length:,13:-14,13:-14]
                 else:
@@ -114,9 +114,9 @@ class Model(object):
                 target = self.accelerator.gather_for_metrics(target).cpu().numpy()
                 prediction = np.clip(prediction, 0.0, 1.0) # B, T, 128, 128
                 if self.configs.visualization and self.accelerator.is_main_process:
-                    visualization_color(target[0], prediction[0], sample_path, itr, self.configs.datasets.split("_")[0])
+                    visualization_color(target[0], prediction[0], sample_path, itr, self.configs.datasets)
                 if self.configs.generate_image and self.accelerator.is_main_process:
-                    image_id = generate_image(prediction, image_path, image_id, self.configs.datasets.split("_")[0]) #target, 
+                    image_id = generate_image(prediction, image_path, image_id, self.configs.datasets) #target, 
                 if self.accelerator.is_main_process:
                     # sse = spectral_slope_error(prediction, target)
                     # sse_scores.append(sse)
