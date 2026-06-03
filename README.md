@@ -6,7 +6,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2606.02661-b31b1b.svg)](https://arxiv.org/abs/2606.02661)
 [![PDF](https://img.shields.io/badge/PDF-Paper-red.svg)](https://arxiv.org/pdf/2606.02661.pdf)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.8%2B-green.svg)](https://www.python.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
 
 
