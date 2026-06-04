@@ -8,6 +8,7 @@ from model.modules import SingleStreamBlock, FrequencyScaleEmbedder, LigerEmbedN
 
 
 class Network(nn.Module):
+    """SDIR backbone with coarse frequency conditioning and a refinement branch."""
 
     def __init__(self, configs, latent_size, 
                  hidden_size=1024, num_heads=8, depth=8):
@@ -28,6 +29,7 @@ class Network(nn.Module):
                                      init_zero=1, out_channels=configs.output_length)
         
     def patchify(self, x):
+        """Convert image sequences into patch tokens."""
         bsz, t, c, h, w = x.shape
         p = self.configs.patch_size
         h_, w_ = h // p, w // p
@@ -59,13 +61,14 @@ class Network(nn.Module):
         input_embedding = self.input_embed(self.patchify(inputs))
         embedding = torch.cat((input_embedding, condition_embedding), dim=1)
         seq_ids = prepare_ids(self.configs.batch_size, self.configs.input_length + self.configs.output_length, 
-                              self.latent_size, self.latent_size, inputs.device, inputs.dtype) #B, N, 3
-        pe = self.pe_embedder(seq_ids) # 2{B, N, 128}
+                              self.latent_size, self.latent_size, inputs.device, inputs.dtype) # B, N, 3
+        pe = self.pe_embedder(seq_ids) # Positional embedding for all input and output tokens.
         for blk in self.blocks:
             embedding = auto_grad_checkpoint(blk, embedding, index_embedding, pe)
         
         output1 = self.output_layer(embedding, index_embedding)
         output1 = self.unpatchify(output1).to(torch.float32)[:, -self.configs.output_length:, ...]
+        # Predict a residual correction conditioned on the inputs and coarse output.
         output2 = self.fr_refiner(torch.cat((inputs, output1), dim=1).squeeze(2), index).unsqueeze(2)
         output3 = output1 + output2
 

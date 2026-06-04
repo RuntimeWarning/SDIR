@@ -1078,12 +1078,12 @@ THRESHOLDS = (16, 74, 133, 160, 181, 219)
 
 def gray2color(image, **kwargs):
 
-    # 定义颜色映射和边界
+    # Build the SEVIR color map and intensity boundaries.
     cmap = colors.ListedColormap(COLOR_MAP )
     bounds = BOUNDS
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    # 将图像进行染色
+    # Convert scalar intensities to RGBA colors.
     colored_image = cmap(norm(image))
 
     return colored_image

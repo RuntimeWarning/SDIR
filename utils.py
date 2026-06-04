@@ -1,3 +1,4 @@
+import argparse
 import torch
 import random
 import numpy as np
@@ -8,14 +9,14 @@ from torch.utils.checkpoint import checkpoint, checkpoint_sequential
 
 
 def compute_radial_psd(field):
-    """field: (H, W) numpy array"""
+    """Compute the radially averaged power spectral density of a 2D field."""
     H, W = field.shape
-    # Hann 窗减少边缘效应
+    # Use a Hann window to reduce boundary artifacts before the FFT.
     window = np.hanning(H)[:, None] * np.hanning(W)[None, :]
     fft = np.fft.rfft2(field * window)
     psd_2d = (np.abs(fft) ** 2) / (H * W)
 
-    # 径向平均
+    # Average spectral power over radial frequency bins.
     ky = np.fft.fftfreq(H)
     kx = np.fft.rfftfreq(W)
     KX, KY = np.meshgrid(kx, ky)
@@ -33,8 +34,10 @@ def compute_radial_psd(field):
 
 def spectral_slope_error(pred, gt):
     """
-    pred, gt: (B, T, H, W) numpy array
-    返回每个样本的平均斜率误差
+    Compute the mean absolute error between predicted and target PSD slopes.
+
+    Args:
+        pred, gt: Arrays with shape (B, T, H, W).
     """
     errors = []
     B, T, H, W = pred.shape
@@ -43,11 +46,11 @@ def spectral_slope_error(pred, gt):
             k_pred, psd_pred = compute_radial_psd(pred[b, t])
             k_gt,   psd_gt   = compute_radial_psd(gt[b, t])
 
-            # 只取湍流惯性子区间（去掉最低和最高频率）
+            # Fit only the inertial-like mid-frequency range and skip extremes.
             valid = (k_pred > 0.05) & (k_pred < 0.4)
             log_k = np.log(k_pred[valid])
 
-            # log-log 线性拟合，斜率即为谱斜率
+            # The slope of the log-log fit is the spectral slope.
             slope_pred = np.polyfit(log_k, np.log(psd_pred[valid] + 1e-8), 1)[0]
             slope_gt   = np.polyfit(log_k, np.log(psd_gt[valid]   + 1e-8), 1)[0]
 
@@ -58,20 +61,21 @@ def spectral_slope_error(pred, gt):
 
 def get_coarse_condition(sequence_gt, alpha=1.0, beta=3.0):
     """
-    基于频域截断的粗尺度条件生成
-    alpha, beta: 控制 Beta 分布的形状。
-    默认 alpha=0.8, beta=1.5 使采样峰值集中在低频区域 (s 较小)。
+    Generate coarse-scale conditioning by sampling a retained frequency scale.
+
+    Args:
+        sequence_gt: Ground-truth sequence with shape (B, T, C, H, W).
+        alpha, beta: Shape parameters for the Beta distribution. With
+            alpha < beta, sampled scales are biased toward low frequencies.
     """
     B, T, C, H, W = sequence_gt.shape
     device = sequence_gt.device
     
-    # 1. 使用 Beta 分布生成采样比例 (0~1)
-    # alpha < beta 时，分布偏向左侧（低频）
+    # Sample a frequency retention ratio in [0, 1].
     m = torch.distributions.Beta(torch.tensor([alpha]), torch.tensor([beta]))
     s_ratio = m.sample((B,)).to(device).view(B) # [B]
     
-    # 2. 映射到实际的频率尺度 s ∈ [0, W]
-    # 这里 s 代表保留左上角 s*s 的 DCT 系数
+    # Map the ratio to the spatial scale used by bicubic down/up sampling.
     s_tensor = torch.round(s_ratio * W).long()
     
     low_res_condition = torch.zeros_like(sequence_gt)
@@ -80,23 +84,23 @@ def get_coarse_condition(sequence_gt, alpha=1.0, beta=3.0):
         s = s_tensor[i].item()
         
         if s == 0:
-            # s=0 时，低频条件为全黑（或全局均值），模拟完全冷启动
+            # An all-zero condition simulates a cold start with no coarse signal.
             continue
         elif s >= W:
-            # s=W 时，保留全部频率，即原始图像
+            # Full scale keeps the original sequence unchanged.
             low_res_condition[i] = sequence_gt[i]
         else:
             imgs_resize = F.interpolate(sequence_gt[i], size=(s, s), mode='bicubic')
             low_res_condition[i] = F.interpolate(imgs_resize, size=(H, W), mode='bicubic')
 
-    # 将 s 作为标量信号返回，用于 AdaIN 注入
-    # 转换为 float 类型以适配后续的线性层处理
+    # Return the scale as a floating-point conditioning signal for AdaIN layers.
     resolution_tensor = s_tensor.to(sequence_gt.dtype) 
     
     return low_res_condition, resolution_tensor
 
 
 def auto_grad_checkpoint(module, *args, **kwargs):
+    """Run a module with gradient checkpointing when the module enables it."""
     if getattr(module, "grad_checkpointing", False):
         if not isinstance(module, Iterable):
             return checkpoint(module, *args, use_reentrant=False, **kwargs)
@@ -106,6 +110,18 @@ def auto_grad_checkpoint(module, *args, **kwargs):
 
 
 def mask_by_order(mask_len, order, bsz, seq_len):
+    """Build a binary mask by selecting the first ``mask_len`` indices in ``order``."""
     masking = torch.zeros(bsz, seq_len).cuda()
     masking = torch.scatter(masking, dim=-1, index=order[:, :mask_len.long()], src=torch.ones(bsz, seq_len).cuda())#.bool()
     return masking
+
+def str2bool(v):
+    """Parse common command-line string values into booleans."""
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")

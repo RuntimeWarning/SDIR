@@ -78,10 +78,10 @@ datasets_params = {
 
 
 def gray2color(image, dataset):
-    # 定义颜色映射和边界
+    # Build the dataset-specific color map and threshold boundaries.
     cmap = colors.ListedColormap(datasets_params[dataset]['COLOR_MAP'])
     norm = colors.BoundaryNorm(datasets_params[dataset]['BOUNDS'], cmap.N)
-    # 将图像进行染色
+    # Convert scalar intensities to RGBA colors.
     colored_image = cmap(norm(image))
     return colored_image
 

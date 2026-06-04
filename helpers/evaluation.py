@@ -72,17 +72,18 @@ class Evaluation(object):
 
     def calculate_stat(self):
         """
-        计算各项评估指标
+        Calculate all evaluation metrics.
+
         a: TP (Hits), b: FP (False Alarms), c: FN (Misses), d: TN (Correct Negatives)
         """
-        eps = 1e-7  # 防止除以 0
+        eps = 1e-7  # Prevent division by zero.
         
         a = self._total_hits.astype(np.float64)
         b = self._total_false_alarms.astype(np.float64)
         c = self._total_misses.astype(np.float64)
         d = self._total_correct_negatives.astype(np.float64)
         
-        # 1. 基础分类指标
+        # Basic categorical metrics.
         # POD (Probability of Detection) / Recall
         pod = a / (a + c + eps)
         # FAR (False Alarm Rate)
@@ -90,28 +91,27 @@ class Evaluation(object):
         # CSI (Critical Success Index) / Threat Score
         csi = a / (a + b + c + eps)
         
-        # 2. 统计学指标
+        # Statistical metrics.
         n = a + b + c + d
         # Accuracy
         accuracy = (a + d) / (n + eps)
         # Bias Score
         bias = (a + b) / (a + c + eps)
         
-        # 3. 技能评分 (Skill Scores)
-        # aref 是随机预测下的 Hits 期望值
+        # Skill scores.
+        # Expected hits under random forecasts.
         aref = (a + b) / (n + eps) * (a + c)
         # GSS (Gilbert Skill Score) / ETS (Equitable Threat Score)
         gss = (a - aref) / (a + b + c - aref + eps)
         # HSS (Heidke Skill Score)
         hss = 2 * gss / (gss + 1 + eps)
         
-        # 4. 机器学习常用指标
+        # Common machine-learning classification metrics.
         precision = a / (a + b + eps)
         recall = pod
         f1 = (2 * precision * recall) / (precision + recall + eps)
         
-        # 5. 图像质量指标 (均值)
-        # 这里除以的是总 batch 数，因为在 update 中是累加的
+        # Image quality metrics averaged over all accumulated samples.
         mse = self._mse / (self._total_batch_num + eps)
         mae = self._mae / (self._total_batch_num + eps)
         ssim = self._ssim / (self._total_batch_num + eps)

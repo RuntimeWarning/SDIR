@@ -33,10 +33,10 @@ class SFNO(nn.Module):
         self.w2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor, self.block_size))
         self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
 
-        self.norm = LayerNorm2d(hidden_size, affine=False, eps=1e-6) # <--- 使用无仿射 LayerNorm
+        self.norm = LayerNorm2d(hidden_size, affine=False, eps=1e-6) # Non-affine normalization; modulation supplies shift and scale.
         self.adaLN_modulation = nn.Sequential(
             nn.SiLU(),
-            nn.Linear(hidden_size, 2 * hidden_size, bias=True) # 输出 Shift 和 Scale
+            nn.Linear(hidden_size, 2 * hidden_size, bias=True) # Predict shift and scale.
         )
 
     def forward(self, x, s):
@@ -264,18 +264,16 @@ class FR_Refiner(nn.Module):
     def forward(self, x, s):
 
         x = self.x_embedder(x)                   # (N, C, H, W)
-        c_ls = list() # generate various dim of condition
+        c_ls = list() # Multi-resolution scale-conditioning embeddings.
 
         for idx in range(self.levels+1):
             s_emb = self.s_embedder_ls[idx](s)    # (N, C)
             c_ls.append(s_emb)
         
-        # c_ls = cond_ls + cond_ls[-2::-1]
-
         skip = list()
         stage_idx = 0
 
-        # encoder: first infer, then downsample
+        # Encoder blocks refine features before each downsampling step.
         for idx, block in enumerate(self.enc_blocks):
             x = block(x, c_ls[stage_idx])
             skip.append(x)
@@ -284,18 +282,17 @@ class FR_Refiner(nn.Module):
 
         latent_cond = c_ls[self.levels]
         for block in self.lat_blocks:
-            x = block(x , latent_cond) #
+            x = block(x, latent_cond)
 
-        # decoder: first upsample, then merge skip, then infer
+        # Decoder blocks upsample, merge the skip feature, then refine.
         dec_c_ls = c_ls[-1:0:-1]
         for idx, block in enumerate(self.dec_blocks):
             x = self.ups[idx](x)
             x = block(torch.cat([x, skip.pop()], 1), dec_c_ls[idx])
 
-        # output
         x = self.output(x)
 
-        x = self.final_layer(x, c_ls[1]) # (N, T, patch_size ** 2 * out_channels) # stick to last stage
+        x = self.final_layer(x, c_ls[1]) # Use the final decoder-scale conditioning.
 
         return x
 

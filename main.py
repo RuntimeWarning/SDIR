@@ -6,6 +6,7 @@ import argparse
 import numpy as np
 from engine import Model
 from tqdm.auto import tqdm
+from utils import str2bool
 from datasets import get_datasets
 from helpers.save_weights import SaveWeights
 
@@ -18,7 +19,7 @@ parser.add_argument('--depth', type=int, default=8)
 parser.add_argument('--lr', type=float, default=3e-4)
 parser.add_argument('--max_epoches', type=int, default=201)
 parser.add_argument('--save_dir', type=str, default='model_data')
-parser.add_argument('--generate_image', type=bool, default=False)
+parser.add_argument('--generate_image', type=str2bool, default=False)
 parser.add_argument('--seed', type=int, default=2025)
 parser.add_argument("--lr-beta1", type=float, default=0.95, help="learning rate beta 1")
 parser.add_argument("--lr-beta2", type=float, default=0.99, help="learning rate beta 2")
@@ -26,17 +27,17 @@ parser.add_argument("--l2-norm", type=float, default=0, help="l2 norm weight dec
 parser.add_argument("--mixed_precision",type=str, default='fp16', help="mixed precision training")
 
 parser.add_argument('--batch_size', type=int, default=8)
-parser.add_argument('--is_train', type=bool, default=True)# True for training, False for testing
+parser.add_argument('--is_train', type=str2bool, default=True) # True for training, False for testing.
 parser.add_argument('--pretrained_model', type=str, default='')
-parser.add_argument('--datasets', type=str, default='cikm') # cikm, shanghai, sevir
-parser.add_argument('--output_length', type=int, default=10) # cikm: 10, shanghai & sevir: 20
+parser.add_argument('--datasets', type=str, default='cikm') # Supported datasets: cikm, shanghai, sevir.
+parser.add_argument('--output_length', type=int, default=10) # cikm: 10; shanghai and sevir: 20.
 parser.add_argument('--input_length', type=int, default=5)
 parser.add_argument('--device', type=str, default='cuda')
 parser.add_argument('--model_name', type=str, default='SDIR')
-parser.add_argument('--visualization', type=bool, default=True)
-parser.add_argument('--frequency_stride', type=int, default=16) # cikm: 16, shanghai & sevir: 32
-parser.add_argument('--img_size', type=int, default=128) # cikm: 128, shanghai & sevir: 256
-parser.add_argument('--patch_size', type=int, default=4) # cikm: 4, shanghai & sevir: 8
+parser.add_argument('--visualization', type=str2bool, default=True)
+parser.add_argument('--frequency_stride', type=int, default=16) # cikm: 16; shanghai and sevir: 32.
+parser.add_argument('--img_size', type=int, default=128) # cikm: 128; shanghai and sevir: 256.
+parser.add_argument('--patch_size', type=int, default=4) # cikm: 4; shanghai and sevir: 8.
 parser.add_argument('--thresholds', type=str, default='[20.0, 30.0, 35.0, 40.0]')
 parser.add_argument('--value_scale', type=float, default=90.0)
 args = parser.parse_args()
@@ -45,13 +46,14 @@ args.thresholds = [16, 74, 133, 160, 181, 219] if args.datasets=='sevir' else ev
 args.value_scale = 255.0 if args.datasets=='sevir' else 90.0
 
 def train_wrapper(model):
+    """Run training and save checkpoints tracked by the epoch mean training loss."""
     save_weights = SaveWeights(verbose=True)
     start_epoch = 1
     if args.pretrained_model:
         model.load(args.pretrained_model)
         start_epoch = re.findall(r'/(\d+)/', args.pretrained_model)
         start_epoch = int(start_epoch[0])+1 if start_epoch else 1
-    train_input_handle = get_datasets(name=args.datasets, opt='train', # cikm, knmi, tianchi, inspur
+    train_input_handle = get_datasets(name=args.datasets, opt='train',
                                       batch_size=args.batch_size, 
                                       num_workers=args.num_workers, 
                                       shuffle=True)
@@ -72,6 +74,7 @@ def train_wrapper(model):
             save_weights(mean_loss, model_dict, args.model_name+'_'+args.datasets, epoch)
         
 def test_wrapper(model):
+    """Run test-time inference and save metrics/images under the checkpoint epoch."""
     model.load(args.pretrained_model)
     match = re.findall(r'/(\d+)/', args.pretrained_model)
     epoch = match[0] if match else "1"

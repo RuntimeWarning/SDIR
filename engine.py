@@ -9,13 +9,15 @@ from model.model import Network
 from model.psdloss import PSDLoss
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from utils import get_coarse_condition#, spectral_slope_error
+from utils import get_coarse_condition #, spectral_slope_error
 from helpers.evaluation import Evaluation
 from accelerate.utils import DistributedDataParallelKwargs
 from helpers.visualization import generate_image, visualization_color
 
 
 class Model(object):
+    """Training and evaluation wrapper around the SDIR network."""
+
     def __init__(self, configs):
         set_seed(configs.seed)
         self.configs = configs
@@ -49,14 +51,15 @@ class Model(object):
         self.accelerator.print('Model loaded from %s' % checkpoint_path)
 
 
-    def train(self, data): # frames_z: B, T, C, H, W
+    def train(self, data): # data: B, T, C, H, W
         self.network.train()
         self.optimizer.zero_grad()
         with self.accelerator.autocast():
             inputs = data[:, :self.configs.input_length]
             targets = data[:, -self.configs.output_length:]
             frequency_cond, s_current = get_coarse_condition(targets)
-            pred1, pred2, pred3 = self.network(inputs, frequency_cond, s_current) #
+            pred1, pred2, pred3 = self.network(inputs, frequency_cond, s_current)
+            # Increase the PSD weight as more high-frequency information is exposed.
             alpha = 0.01 * torch.pow(s_current / self.configs.img_size, 2).repeat_interleave(self.configs.output_length)
             l_base = self.mae(pred1, targets)
             l_res = self.mae(pred2, targets - pred1)
@@ -89,7 +92,7 @@ class Model(object):
         self.network.eval()
         # sse_scores = []
         for itr, data in enumerate(test_pbar):
-            with torch.no_grad():
+            with torch.no_grad(), self.accelerator.autocast():
                 inputs = data[:, :self.configs.input_length]
                 target = data[:, -self.configs.output_length:]
                 num_iter = len(self.frequency_indexes)
@@ -97,10 +100,11 @@ class Model(object):
                 for step in list(range(num_iter)):
                     s_current = torch.tensor([self.frequency_indexes[step]]).to(self.accelerator.device).to(inputs.dtype)
                     s_current = s_current.repeat(self.configs.batch_size)
-                    _, _, tokens = self.network(inputs, tokens, s_current) #
+                    _, _, tokens = self.network(inputs, tokens, s_current)
                     if step < num_iter-1:
                         tokens = tokens.reshape(self.configs.batch_size * self.configs.output_length, -1, self.configs.img_size, self.configs.img_size) # B*T, C, H, W
-                        imgs_resize = F.interpolate(tokens, size=(self.frequency_indexes[step+1], self.frequency_indexes[step+1]), mode='bicubic') # area
+                        # Re-project the current prediction to the next coarse scale.
+                        imgs_resize = F.interpolate(tokens, size=(self.frequency_indexes[step+1], self.frequency_indexes[step+1]), mode='bicubic')
                         tokens = F.interpolate(imgs_resize, size=(self.configs.img_size, self.configs.img_size), mode='bicubic')
                         tokens = tokens.reshape(self.configs.batch_size, self.configs.output_length, -1, self.configs.img_size, self.configs.img_size) # B, T, C, H, W
                 prediction = tokens.squeeze(2) # B, T, H, W
@@ -116,7 +120,7 @@ class Model(object):
                 if self.configs.visualization and self.accelerator.is_main_process:
                     visualization_color(target[0], prediction[0], sample_path, itr, self.configs.datasets)
                 if self.configs.generate_image and self.accelerator.is_main_process:
-                    image_id = generate_image(prediction, image_path, image_id, self.configs.datasets) #target, 
+                    image_id = generate_image(prediction, image_path, image_id, self.configs.datasets)
                 if self.accelerator.is_main_process:
                     # sse = spectral_slope_error(prediction, target)
                     # sse_scores.append(sse)

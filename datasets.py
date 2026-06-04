@@ -9,6 +9,8 @@ from helpers.dataset_sevir import SEVIRTorchDataset
 
 
 class Shanghai_Datasets(data.Dataset):
+    """Shanghai radar sequence dataset backed by an HDF5 file."""
+
     def __init__(self, data_path, img_size, mode='train', trans=None):
         super().__init__()
         self.data_path = data_path
@@ -34,6 +36,8 @@ class Shanghai_Datasets(data.Dataset):
 
 
 class CIKM_Datasets(data.Dataset):
+    """CIKM radar sequence dataset backed by an HDF5 file."""
+
     def __init__(self, path, mode='train'):
         self.path = path
         self.mode = mode
@@ -58,7 +62,8 @@ class CIKM_Datasets(data.Dataset):
         return self.size
     
 
-def get_datasets(name='cikm', opt='train', batch_size=16, num_workers=4, shuffle=True):  # opt in ['train', 'test', 'validation']
+def get_datasets(name='cikm', opt='train', batch_size=16, num_workers=4, shuffle=True):
+    """Create the requested dataset loader for train, test, or validation splits."""
 
     if name == 'cikm':
         cikm_dataset = CIKM_Datasets(path='../PN_Datasets/CIKM2017.h5', mode=opt)
