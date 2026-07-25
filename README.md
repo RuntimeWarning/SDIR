@@ -9,7 +9,6 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
 
-
 *ICML 2026*
 
 </div>
@@ -53,6 +52,29 @@ pip install -r requirements.txt
 
 ---
 
+## 📦 Pre-trained Models
+
+Pre-trained SDIR model weights are available on [Google Drive](https://drive.google.com/drive/folders/10jiWIXpfn6j-7UvD7-xcbu3ezrxgKoCc?usp=drive_link).
+
+Please download the required checkpoint from the Google Drive folder and place it in the `checkpoints/` directory:
+
+```bash
+mkdir -p checkpoints
+```
+
+After downloading, your project structure should look like:
+
+```text
+SDIR/
+├── checkpoints/
+│   └── sevir.pth
+├── imgs/
+├── main.py
+└── requirements.txt
+```
+
+---
+
 ## 🚀 Training
 
 ### Single GPU
@@ -71,7 +93,7 @@ SDIR supports **multi-GPU distributed training** via [Hugging Face Accelerate](h
 accelerate config
 ```
 
-Follow the prompts to set up your distributed training environment (number of GPUs, mixed precision, etc.).
+Follow the prompts to set up your distributed training environment, including the number of GPUs and mixed-precision configuration.
 
 **Step 2: Launch distributed training**
 
@@ -86,6 +108,8 @@ accelerate launch main.py --is_train True --datasets shanghai --img_size 256 --p
 ## 🔍 Inference
 
 ### Single GPU
+
+Download the pre-trained checkpoint from [Google Drive](https://drive.google.com/drive/folders/10jiWIXpfn6j-7UvD7-xcbu3ezrxgKoCc?usp=drive_link) and place it at `checkpoints/sdir_shanghai.pth`.
 
 ```bash
 python main.py --is_train False --datasets shanghai --img_size 256 --patch_size 8 --output_length 20 --pretrained_model checkpoints/sdir_shanghai.pth
@@ -118,4 +142,4 @@ If you find this work useful, please consider citing our paper:
 
 ## 📄 License
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the MIT License.
